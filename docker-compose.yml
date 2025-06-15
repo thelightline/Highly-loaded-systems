@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  postgres-master:
+    image: citusdata/pg_auto_failover:demo
+    container_name: postgres-master
+    environment:
+      PGDATA: /tmp/pgaf
+      PGUSER: admin
+      PGDATABASE: app_db
+      PG_AUTOCTL_MONITOR: "postgresql://autoctl_node@monitor/pg_auto_failover"
+    command: pg_autoctl create postgres --ssl-self-signed --auth trust --pg-hba-lan --run
+    ports:
+      - "5432:5432"
+    expose:
+      - 5432
+    networks:
+      - pg-network
+
+  postgres-slave:
+    image: citusdata/pg_auto_failover:demo
+    container_name: postgres-slave
+    environment:
+      PGDATA: /tmp/pgaf
+      PGUSER: admin
+      PGDATABASE: app_db
+      PG_AUTOCTL_MONITOR: "postgresql://autoctl_node@monitor/pg_auto_failover"
+    command: pg_autoctl create postgres --ssl-self-signed --auth trust --pg-hba-lan --run
+    ports:
+      - "5433:5432"
+    expose:
+      - 5432
+    depends_on:
+      - postgres-master
+      - etcd
+    networks:
+      - pg-network
+
+  postgres-observer:
+    image: citusdata/pg_auto_failover:demo
+    container_name: postgres-observer
+    environment:
+      PGDATA: /tmp/pgaf
+      PGUSER: admin
+      PGDATABASE: app_db
+      PG_AUTOCTL_MONITOR: "postgresql://autoctl_node@monitor/pg_auto_failover"
+    command: pg_autoctl create postgres --ssl-self-signed --auth trust --pg-hba-lan --run
+    ports:
+      - "5434:5432"
+    expose:
+      - 5432
+    depends_on:
+      - postgres-master
+      - etcd
+    networks:
+      - pg-network
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.4.13
+    container_name: etcd
+    environment:
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_NAME=etcd1
+    ports:
+      - "2379:2379"
+    networks:
+      - pg-network
+
+  monitor:
+    image: citusdata/pg_auto_failover:demo
+    container_name: pg-monitor
+    environment:
+      PGDATA: /tmp/pgaf
+      PG_AUTOCTL_DEBUG: 1
+    command: pg_autoctl create monitor --ssl-self-signed --auth trust --run
+    expose:
+      - 5432
+    networks:
+      - pg-network
+
+networks:
+  pg-network:
+    driver: bridge
