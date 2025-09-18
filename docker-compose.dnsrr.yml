@@ -1,0 +1,15 @@
+services:
+  nginx2:
+    image: nginx:1.29
+    container_name: project_nginx2_1
+    depends_on:
+      - backend
+      - users-service
+      - products-service
+    networks: [default]
+    volumes:
+      - ./nginx/nginx2.conf:/etc/nginx/nginx.conf:ro
+      - nginx_cache:/var/cache/nginx
+    ports:
+      - "8082:80"
+      - "10.255.0.3:80:80"

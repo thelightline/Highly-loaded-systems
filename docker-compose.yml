@@ -9,7 +9,6 @@ services:
     depends_on:
       - nginx
 
-
   nginx:
     image: nginx:alpine
     depends_on:
@@ -21,6 +20,22 @@ services:
       - nginx_cache:/var/cache/nginx
     ports:
       - "8081:80"
+      - "10.255.0.2:80:80"
+
+  nginx2:
+    image: nginx:1.29
+    container_name: project_nginx2_1
+    depends_on:
+      - backend
+      - users-service
+      - products-service
+    networks: [default]
+    volumes:
+      - ./nginx/nginx2.conf:/etc/nginx/nginx.conf:ro
+      - nginx_cache:/var/cache/nginx
+    ports:
+      - "8082:80"
+      - "10.255.0.3:80:80"
 
   backend:
     build:
@@ -38,8 +53,8 @@ services:
 
   users-service:
     build:
-      context: ./users-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: users-service/Dockerfile
     environment:
       - DATABASE_URL=host=db-primary dbname=trading user=app password=app port=5432
       - DB_HOST=db-primary
@@ -48,10 +63,26 @@ services:
       - DB_USER=app
       - DB_PASSWORD=app
       - PGOPTIONS=-c search_path=public
+      - SERVICE_VERSION=v1
+      - FAIL_RATE=0.0
     depends_on:
       - db-primary
     ports:
       - "8001:8001"
+
+  users-service-v2:
+    build:
+      context: .
+      dockerfile: users-service/Dockerfile
+    environment:
+      - DATABASE_URL=host=db-primary dbname=trading user=app password=app port=5432
+      - PGOPTIONS=-c search_path=public
+      - SERVICE_VERSION=v2
+      - FAIL_RATE=0.2
+    depends_on:
+      - db-primary
+    ports:
+      - "8011:8001"
 
   products-service:
     build:
