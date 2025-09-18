@@ -1,0 +1,295 @@
+version: "3.9"
+
+services:
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - nginx
+
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - backend
+      - users-service
+      - products-service
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_cache:/var/cache/nginx
+    ports:
+      - "8081:80"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://app:app@db-primary:5432/trading
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - SERVICE_NAME=backend
+    depends_on:
+      - db-primary
+      - rabbitmq
+    ports:
+      - "8003:8003"
+
+  users-service:
+    build:
+      context: ./users-service
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=host=db-primary dbname=trading user=app password=app port=5432
+      - DB_HOST=db-primary
+      - DB_PORT=5432
+      - DB_NAME=trading
+      - DB_USER=app
+      - DB_PASSWORD=app
+      - PGOPTIONS=-c search_path=public
+    depends_on:
+      - db-primary
+    ports:
+      - "8001:8001"
+
+  products-service:
+    build:
+      context: ./products-service
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=host=db-primary dbname=trading user=app password=app port=5432
+      - DB_HOST=db-primary
+      - DB_PORT=5432
+      - DB_NAME=trading
+      - DB_USER=app
+      - DB_PASSWORD=app
+      - PGOPTIONS=-c search_path=public
+    depends_on:
+      - db-primary
+    ports:
+      - "8002:8002"
+
+
+  matcher:
+    build:
+      context: ./matcher
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://app:app@db-primary:5432/trading
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - db-primary
+      - rabbitmq
+
+
+  db-primary:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: app
+    volumes:
+      - db_primary_data:/var/lib/postgresql/data
+      - ./db-primary/init:/docker-entrypoint-initdb.d
+      - ./db-primary/conf/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./db-primary/conf/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    command: ["-c", "config_file=/etc/postgresql/postgresql.conf"]
+    ports:
+      - "5432:5432"
+    networks:
+      default:
+        aliases: ["db"]
+
+
+  db-replica1:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: app
+    volumes:
+      - db_replica1_data:/var/lib/postgresql/data
+      - ./db-replica/replica1/replica-entrypoint.sh:/usr/local/bin/replica-entrypoint.sh:ro
+    depends_on:
+      - db-primary
+    entrypoint: ["/bin/sh", "/usr/local/bin/replica-entrypoint.sh"]
+
+
+  db-replica2:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: app
+    volumes:
+      - db_replica2_data:/var/lib/postgresql/data
+      - ./db-replica/replica2/replica-entrypoint.sh:/usr/local/bin/replica-entrypoint.sh:ro
+    depends_on:
+      - db-primary
+    entrypoint: ["/bin/sh", "/usr/local/bin/replica-entrypoint.sh"]
+
+  nginx2:
+    image: nginx:1.29
+    container_name: project_nginx2_1
+    ports:
+      - "8082:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - backend
+      - users-service
+      - products-service
+    networks:
+      - default
+
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    depends_on:
+      - cadvisor
+      - postgres-exporter-primary
+      - postgres-exporter-replica1
+      - postgres-exporter-replica2
+      - nginx-exporter
+      - rabbitmq-exporter
+
+
+  grafana:
+    image: grafana/grafana:10.4.6
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    ports:
+      - "8088:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+
+
+  postgres-exporter-primary:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_NAME=postgresql://exporter:exporter@db-primary:5432/trading?sslmode=disable
+    depends_on:
+      - db-primary
+
+
+  postgres-exporter-replica1:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_NAME=postgresql://exporter:exporter@db-replica1:5432/trading?sslmode=disable
+    depends_on:
+      - db-replica1
+
+
+  postgres-exporter-replica2:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_NAME=postgresql://exporter:exporter@db-replica2:5432/trading?sslmode=disable
+    depends_on:
+      - db-replica2
+
+
+  nginx-exporter:
+    image: ghcr.io/nginxinc/nginx-prometheus-exporter:0.11.0
+    command:
+      - -nginx.scrape-uri=http://nginx/stub_status
+    depends_on:
+      - nginx
+    ports:
+      - "9113:9113"
+
+
+  rabbitmq-exporter:
+    image: kbudde/rabbitmq-exporter:v0.29.0
+    environment:
+      - RABBIT_URL=http://rabbitmq:15672
+      - RABBIT_USER=monitor
+      - RABBIT_PASSWORD=monitor
+      - PUBLISH_PORT=9419
+      - RABBIT_EXPORTERS=overview,exchanges,queues
+    depends_on: [rabbitmq]
+    ports:
+      - "9419:9419"
+
+  backup:
+    build: ./backup
+    environment:
+      - PGHOST=db-primary
+      - PGPORT=5432
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+      - PGDATABASE=trading
+      - BACKUP_DIR=/backups
+      - RETAIN=24
+    volumes:
+      - backups_data:/backups
+    depends_on:
+      - db-primary
+
+
+  audit-forwarder:
+    build: ./audit-forwarder
+    restart: unless-stopped
+    environment:
+      - TRADING_DSN=postgresql://app:app@db-primary:5432/trading
+      - AUDIT_DSN=postgresql://app_audit:app_audit@db-audit:5432/audit
+    depends_on:
+      - db-primary
+      - db-audit
+
+  audit-service:
+    build: ./audit-service
+    environment:
+      - DB_DSN=postgresql://app_audit:app_audit@db-audit:5432/audit
+    depends_on:
+      - db-audit
+    ports:
+      - "7000:7000"
+
+
+  db-audit:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - db_audit_data:/var/lib/postgresql/data
+      - ./db-audit/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5440:5432"
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  db_primary_data:
+  db_replica1_data:
+  db_replica2_data:
+  nginx_cache:
+  backups_data:
+  audit-service:
+  db_audit_data:
+  audit-forwarder:
