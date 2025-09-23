@@ -8,8 +8,8 @@ from uuid import uuid4
 from common.audit import append_outbox
 
 DB_DSN = os.getenv("DATABASE_URL", "host=db-primary dbname=trading user=app password=app port=5432")
-SERVICE_VERSION = os.getenv("SERVICE_VERSION", "v1")  # v1 | v2
-FAIL_RATE = float(os.getenv("FAIL_RATE", "0.0"))      # 0.0..1.0
+SERVICE_VERSION = os.getenv("SERVICE_VERSION", "v1")
+FAIL_RATE = float(os.getenv("FAIL_RATE", "0.0"))
 ACTOR = os.getenv("SERVICE_NAME", "users-service")
 
 app = FastAPI()
@@ -27,7 +27,6 @@ def time_now():
 
 @app.post("/create")
 def create_user(name: str, balance: float = 0.0, response: Response = None):
-    # Response инжектится фреймворком; чтобы не раздражать типизатор:
     if response is None:
         response = Response()
     response.headers["X-Service-Version"] = SERVICE_VERSION

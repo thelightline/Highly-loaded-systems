@@ -1,12 +1,178 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-    <title>Trading System</title>
-  </head>
-  <body>
-    <h1>Frontend работает!</h1>
-    <p>Данные будут приходить с backend API</p>
-    <p>Проверка: Привет, мир!</p>
-  </body>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Trading</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; background:#0b1020; color:#e6e9f2; }
+    header { padding:16px 20px; background:#0f1530; border-bottom:1px solid #1f2a4a; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+    header h1 { margin:0; font-size:18px; letter-spacing:.3px; }
+    main { padding:16px 20px; display:grid; grid-template-columns: 320px 1fr 360px; gap:16px; }
+    section { background:#0f1530; border:1px solid #1f2a4a; border-radius:12px; overflow:hidden; }
+    section h2 { margin:0; padding:12px 14px; font-size:14px; font-weight:600; letter-spacing:.3px; border-bottom:1px solid #1f2a4a; background:#101738; }
+    .sec-body { padding:12px 14px; display:grid; gap:10px; }
+    label { font-size:12px; color:#9fb0d1; display:block; margin-bottom:4px; }
+    input, select, button { width:100%; box-sizing:border-box; }
+    input, select { background:#0f1530; color:#e6e9f2; border:1px solid #26345d; border-radius:10px; padding:10px 12px; }
+    input::placeholder { color:#6d7ea6; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .row3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
+    button { background:#2e65f5; border:none; color:white; padding:10px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
+    button.secondary { background:#20315f; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .muted { color:#95a6c8; font-size:12px; }
+    .ok { color:#49d18a; }
+    .err { color:#ff6b6b; white-space:pre-wrap; }
+    .inline { display:inline-flex; gap:8px; align-items:center; }
+    .pill { padding:4px 8px; border:1px solid #2a3b6f; border-radius:999px; color:#9fb0d1; font-size:12px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { padding:6px 8px; text-align:right; border-bottom:1px solid #1f2a4a; }
+    th:first-child, td:first-child { text-align:left; }
+    .price { text-align:center; font-weight:700; }
+    .bid { color:#4fd3a7; }
+    .ask { color:#ff8f8f; }
+    .center-col { width:120px; }
+    .grid-gap { display:grid; gap:10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Trading</h1>
+    <div class="inline">
+      <label for="symbolSelect" class="muted">Тикер</label>
+      <select id="symbolSelect" style="width:160px"></select>
+      <button class="secondary" id="btnReloadSymbols">Обновить</button>
+    </div>
+    <div class="inline">
+      <span class="pill">API: <span id="apiBasePill"></span></span>
+      <span class="pill">User: <span id="userPill">alice</span></span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ЛЕВАЯ КОЛОНКА -->
+    <section>
+      <h2>Действия</h2>
+      <div class="sec-body grid-gap">
+        <div>
+          <div class="row">
+            <div>
+              <label>Пользователь</label>
+              <input id="userInput" placeholder="alice / bob" value="alice" />
+            </div>
+            <div>
+              <label>Сумма на счёте</label>
+              <div class="pill" id="balanceLine">—</div>
+            </div>
+          </div>
+          <div class="row3">
+            <div>
+              <label>Цена</label>
+              <input id="priceInput" type="number" step="0.01" placeholder="напр. 100" />
+            </div>
+            <div>
+              <label>Кол-во</label>
+              <input id="qtyInput" type="number" step="1" min="1" placeholder="напр. 1" />
+            </div>
+            <div style="align-self:end;">
+              <button id="btnBuy">Купить</button>
+              <button id="btnSell" class="secondary">Продать</button>
+            </div>
+          </div>
+          <div class="muted">Кол-во — целое положительное число. Цена > 0.</div>
+          <div id="tradeMsg" class="muted"></div>
+        </div>
+
+<!-- Админ: пользователь и тикер -->
+<div>
+  <h3>Админ</h3>
+  <input id="u_name" placeholder="user (e.g. alice)">
+  <input id="u_bal" type="number" placeholder="balance (e.g. 5000)">
+  <button onclick="createUser(u_name.value, u_bal.value).then(alert).catch(e=>alert(e))">Создать пользователя</button>
+  <br>
+  <input id="symb" placeholder="symbol (e.g. TSLA)">
+  <button onclick="addSymbol(symb.value,1).then(alert).catch(e=>alert(e))">Добавить тикер</button>
+  <br>
+  <input id="g_user" placeholder="user">
+  <input id="g_sym"  placeholder="symbol">
+  <input id="g_qty"  type="number" placeholder="qty">
+  <button onclick="grantStock(g_user.value,g_sym.value,g_qty.value).then(alert).catch(e=>alert(e))">Выдать бумаги</button>
+</div>
+
+<!-- Торговля -->
+<div>
+  <h3>Ордер</h3>
+  <input id="o_user" placeholder="user">
+  <input id="o_sym"  placeholder="symbol">
+  <input id="o_px"   type="number" step="0.01" placeholder="price">
+  <input id="o_qty"  type="number" placeholder="qty">
+  <button onclick="placeOrder('buy',  o_user.value,o_sym.value,o_px.value,o_qty.value).then(alert).catch(e=>alert(e))">BUY</button>
+  <button onclick="placeOrder('sell', o_user.value,o_sym.value,o_px.value,o_qty.value).then(alert).catch(e=>alert(e))">SELL</button>
+</div>
+
+        <div style="border-top:1px solid #1f2a4a; padding-top:10px;">
+          <label>Новый символ</label>
+          <div class="row">
+            <input id="newSymbol" placeholder="например: TSLA" />
+            <input id="newLot" type="number" min="1" step="1" value="1" />
+          </div>
+          <div class="row">
+            <button id="btnAddSymbol">Добавить символ</button>
+            <button class="secondary" id="btnAirdrop">Выдать 100 бумаг (alice)</button>
+          </div>
+          <div id="addSymbolMsg" class="muted"></div>
+        </div>
+
+        <div style="border-top:1px solid #1f2a4a; padding-top:10px;">
+          <button id="btnRefreshAll">Обновить всё</button>
+          <span class="muted">Стакан / Профиль / Транзакции</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ЦЕНТР: стакан -->
+    <section>
+      <h2>Стакан</h2>
+      <div class="sec-body">
+        <table id="bookTable">
+          <thead>
+            <tr>
+              <th class="bid">Покупка (шт / сумма)</th>
+              <th class="price center-col">Цена</th>
+              <th class="ask">Продажа (шт / сумма)</th>
+            </tr>
+          </thead>
+          <tbody id="bookBody">
+            <tr><td colspan="3" class="muted">Загрузка...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ПРАВАЯ КОЛОНКА -->
+    <section>
+      <h2>Профиль</h2>
+      <div class="sec-body" id="profileBox">
+        <div class="muted">Загрузка...</div>
+      </div>
+      <h2>Транзакции</h2>
+      <div class="sec-body">
+        <div class="row">
+          <input id="txUser" placeholder="user (опц.)" />
+          <input id="txSymbol" placeholder="symbol (опц.)" />
+        </div>
+        <div class="row">
+          <button id="btnTxFilter">Фильтр</button>
+          <button id="btnTxReset" class="secondary">Сброс</button>
+        </div>
+        <div id="txBox" class="sec-body" style="padding:0 14px 14px 14px">
+          <div class="muted" style="padding-top:6px;">Загрузка...</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
 </html>
