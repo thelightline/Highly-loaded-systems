@@ -52,8 +52,8 @@ services:
     depends_on:
       - db-primary
       - rabbitmq
-    ports:
-      - "8003:8003"
+#    ports:
+#      - "8003:8003"
 
   users-service:
     build:

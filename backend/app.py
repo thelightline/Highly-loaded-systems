@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 import os, json, pika, psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import Optional
