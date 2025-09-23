@@ -1,8 +1,7 @@
-// БАЗА
 const API = (window.API_BASE || 'http://localhost:8081').replace(/\/$/, '');
 document.getElementById('apiBasePill').textContent = API.replace(/^https?:\/\//, '');
 
-// DOM
+
 const el = id => document.getElementById(id);
 const symbolSelect = el('symbolSelect');
 const userInput    = el('userInput');
@@ -16,7 +15,7 @@ const addSymbolMsg = el('addSymbolMsg');
 const txBox        = el('txBox');
 const userPill     = el('userPill');
 
-// Utils
+
 const fmtMoney = n => Number(n).toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
 const fmtInt   = n => Number(n).toLocaleString('ru-RU', {maximumFractionDigits:0});
 
@@ -42,7 +41,7 @@ async function apiPost(path) {
   return data ?? {};
 }
 
-// Symbols
+
 async function loadSymbols() {
   const list = await apiGet('/api/products/symbols');
   symbolSelect.innerHTML = '';
@@ -71,7 +70,7 @@ async function addSymbol() {
   }
 }
 
-// Airdrop (демо): выдаём Alice 100 бумаг
+
 async function airdrop() {
   const sym = symbolSelect.value;
   if (!sym) return;
@@ -84,7 +83,7 @@ async function airdrop() {
   }
 }
 
-// Order book
+
 async function refreshBook() {
   const sym = symbolSelect.value;
   const data = await apiGet(`/api/orderbook?symbol=${encodeURIComponent(sym)}&depth=15`);
@@ -121,7 +120,7 @@ async function refreshBook() {
   }
 }
 
-// Profile
+
 async function refreshProfile() {
   const user = userInput.value.trim() || 'alice';
   userPill.textContent = user;
@@ -139,7 +138,7 @@ async function refreshProfile() {
   profileBox.innerHTML = '<div class="grid-gap">' + box.map(t=>`<div>${t}</div>`).join('') + '</div>';
 }
 
-// Transactions
+
 async function refreshTx() {
   const u = el('txUser').value.trim();
   const s = el('txSymbol').value.trim().toUpperCase();
@@ -191,7 +190,7 @@ async function placeOrder(side, user, symbol, price, qty) {
   return api(`/api/orders/${side.toLowerCase()}?${qs}`, { method: 'POST' });
 }
 
-// Submit orders
+
 async function submit(side) {
   const user = userInput.value.trim() || 'alice';
   const sym  = symbolSelect.value;
@@ -214,7 +213,7 @@ async function submit(side) {
   }
 }
 
-// Bind
+
 el('btnReloadSymbols').onclick = () => loadSymbols();
 el('btnAddSymbol').onclick     = () => addSymbol();
 el('btnAirdrop').onclick       = () => airdrop();
@@ -225,12 +224,12 @@ el('btnTxFilter').onclick      = () => refreshTx();
 el('btnTxReset').onclick       = () => { el('txUser').value=''; el('txSymbol').value=''; refreshTx(); };
 symbolSelect.onchange          = () => { refreshBook(); el('txSymbol').value = symbolSelect.value; refreshTx(); };
 
-// Refresh all
+
 async function refreshAll() {
   await Promise.all([refreshBook(), refreshProfile(), refreshTx()]);
 }
 
-// Init
+
 (async function init() {
   try { await loadSymbols(); }
   catch (e) {
